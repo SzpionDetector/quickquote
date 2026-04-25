@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>QuickQuote</title>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+border: 1px solid #000;
+  }
+
+  /* =========================
+     APP TABLE
+  ========================== */
+  #quote-table {
+    width: 90%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  #quote-table th,
+  #quote-table td {
+    border: 1px solid #000;
+    padding: 8px;
+  }
+
+#to{width: 15%}
+#from{width: 15%}
+
+  button {
+    margin-top: 10px;
+  }
+
+  /* =========================
+     PDF CONTAINER (SINGLE BOX ONLY)
+  ========================== */
+  #quote-wrapper {
+    display: none;
+    ustify-content: center;
+    width: 100%;
+  }
+
+  #quote {
+    width: 90%;
+    background: #fff;
+    padding: 20px;
+
+    border: 2px solid #000;
+  }
+
+  #logo-img {
+    max-height: 60px;
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  /* =========================
+     PDF TABLE
+  ========================== */
+  #pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  #pdf-table th,
+  #pdf-table td {
+    border: 1px solid #000;
+    padding: 8px;
+  }
+</style>
+</head>
+
+<body>
+
+<h2>QuickQuote Generator</h2>
+
+<input type="file" id="logo" accept="image/*"><br><br>
+
+<label>From: <input type="text" id="from"></label><br>
+<label>To: <input type="text" id="to"></label><br><br>
+
+<table id="quote-table">
+  <tr>
+    <th>Description</th>
+    <th>Qty</th>
+    <th>Rate</th>
+    <th>Amount</th>
+  </tr>
+
+  <tr>
+    <td><input type="text" class="desc"></td>
+    <td><input type="number" class="qty" value="1"></td>
+    <td><input type="number" class="rate" value="0"></td>
+    <td class="amount">$0.00</td>
+  </tr>
+</table>
+
+<button onclick="addRow()">+ Add Line</button><br><br>
+
+<strong>Total: $<span id="total">0.00</span></strong><br><br>
+
+<button onclick="generatePDF()">Download PDF</button>
+
+<!-- =========================
+     PDF OUTPUT
+========================= -->
+<div id="quote-wrapper">
+  <div id="quote">
+
+    <img id="logo-img">
+    <h3>Quote</h3>
+
+    <p><strong>From:</strong> <span id="q-from"></span></p>
+    <p><strong>To:</strong> <span id="q-to"></span></p>
+
+    <table id="pdf-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Rate</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody id="quote-body"></tbody>
+    </table>
+
+    <p><strong>Total: $<span id="q-total"></span></strong></p>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+
+<script>
+
+let logoData = null;
+
+/* ================= LOGO ================= */
+document.getElementById("logo").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => logoData = ev.target.result;
+  reader.readAsDataURL(file);
+});
+
+/* ================= ADD ROW ================= */
+function addRow() {
+  const table = document.getElementById('quote-table');
+  const row = table.insertRow(-1);
+
+  row.innerHTML = `
+    <td><input type="text" class="desc"></td>
+    <td><input type="number" class="qty" value="1"></td>
+    <td><input type="number" class="rate" value="0"></td>
+    <td class="amount">$0.00</td>
+  `;
+}
+
+/* ================= FIXED LIVE UPDATE (THIS IS THE ONLY REAL FIX) ================= */
+document.getElementById('quote-table').addEventListener('input', function () {
+  let total = 0;
+
+  const rows = document.querySelectorAll('#quote-table tr');
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+
+    const desc = row.querySelector('.desc');
+    const qty = row.querySelector('.qty');
+    const rate = row.querySelector('.rate');
+    const amt = row.querySelector('.amount');
+
+    if (!desc || !qty || !rate || !amt) continue;
+
+    const q = Number(qty.value) || 0;
+    const r = Number(rate.value) || 0;
+
+    const a = q * r;
+
+    amt.innerText = '$' + a.toFixed(2);
+    total += a;
+  }
+
+  document.getElementById('total').innerText = total.toFixed(2);
+});
+
+/* ================= PDF ================= */
+function generatePDF() {
+
+  const rows = document.querySelectorAll('#quote-table tr');
+  const body = document.getElementById('quote-body');
+  body.innerHTML = '';
+
+  let hasData = false;
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+
+    const desc = row.querySelector('.desc');
+    const qty = row.querySelector('.qty');
+    const rate = row.querySelector('.rate');
+
+    if (!desc || !qty || !rate) continue;
+    if (!desc.value.trim()) continue;
+
+    hasData = true;
+
+    const q = Number(qty.value) || 0;
+    const r = Number(rate.value) || 0;
+    const a = q * r;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${desc.value}</td>
+      <td>${q}</td>
+      <td>$${r.toFixed(2)}</td>
+      <td>$${a.toFixed(2)}</td>
+    `;
+
+    body.appendChild(tr);
+  }
+
+  if (!hasData) {
+    alert("Please add at least one line item.");
+    return;
+  }
+
+  document.getElementById('q-from').innerText = document.getElementById('from').value;
+  document.getElementById('q-to').innerText = document.getElementById('to').value;
+  document.getElementById('q-total').innerText = document.getElementById('total').innerText;
+
+  const wrapper = document.getElementById('quote-wrapper');
+  const quote = document.getElementById('quote');
+  const logo = document.getElementById('logo-img');
+
+  wrapper.style.display = 'flex';
+
+  function render() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+
+        html2pdf()
+          .set({
+            margin: 10,
+            filename: 'quote.pdf',
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#fff'
+            }
+          })
+          .from(quote)
+          .save()
+          .then(() => wrapper.style.display = 'none');
+      });
+    });
+  }
+
+  if (logoData) {
+    logo.src = logoData;
+    if (logo.complete) render();
+    else logo.onload = render;
+  } else {
+    render();
+  }
+}
+
+</script>
+
+</body>
+</html>
