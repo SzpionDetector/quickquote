@@ -3,80 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <title>QuickQuote</title>
-
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-border: 1px solid #000;
-  }
-
-  /* =========================
-     APP TABLE
-  ========================== */
-  #quote-table {
-    width: 90%;
-    border-collapse: collapse;
-    margin-top: 10px;
-  }
-
-  #quote-table th,
-  #quote-table td {
-    border: 1px solid #000;
-    padding: 8px;
-  }
-
-#to{width: 15%}
-#from{width: 15%}
-
-  button {
-    margin-top: 10px;
-  }
-
-  /* =========================
-     PDF CONTAINER (SINGLE BOX ONLY)
-  ========================== */
-  #quote-wrapper {
-    display: none;
-    ustify-content: center;
-    width: 100%;
-  }
-
-  #quote {
-    width: 90%;
-    background: #fff;
-    padding: 20px;
-
-    border: 2px solid #000;
-  }
-
-  #logo-img {
-    max-height: 60px;
-    display: block;
-    margin-bottom: 10px;
-  }
-
-  /* =========================
-     PDF TABLE
-  ========================== */
-  #pdf-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-  }
-
-  #pdf-table th,
-  #pdf-table td {
-    border: 1px solid #000;
-    padding: 8px;
-  }
+  body { font-family: Arial, sans-serif; margin: 20px; border: 1px solid #000; }
+  #quote-table { width: 90%; border-collapse: collapse; margin-top: 10px; }
+  #quote-table th, #quote-table td { border: 1px solid #000; padding: 8px; }
+  #to{width: 15%} #from{width: 15%}
+  button { margin-top: 10px; }
+  #quote-wrapper { display: none; ustify-content: center; width: 100%; }
+  #quote { width: 90%; background: #fff; padding: 20px; border: 2px solid #000; }
+  #logo-img { max-height: 60px; display: block; margin-bottom: 10px; }
+  #pdf-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  #pdf-table th, #pdf-table td { border: 1px solid #000; padding: 8px; }
 </style>
 </head>
-
 <body>
 
 <h2>QuickQuote Generator</h2>
-
 <input type="file" id="logo" accept="image/*"><br><br>
 
 <label>From: <input type="text" id="from"></label><br>
@@ -84,12 +26,8 @@ border: 1px solid #000;
 
 <table id="quote-table">
   <tr>
-    <th>Description</th>
-    <th>Qty</th>
-    <th>Rate</th>
-    <th>Amount</th>
+    <th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th>
   </tr>
-
   <tr>
     <td><input type="text" class="desc"></td>
     <td><input type="number" class="qty" value="1"></td>
@@ -98,43 +36,33 @@ border: 1px solid #000;
   </tr>
 </table>
 
-<button onclick="addRow()">+ Add Line</button><br><br>
+<button onclick="addRow()">+ Add Line</button><br>
+<button onclick="newQuote()">New Quote</button>
+<button onclick="exportQuote()">Export JSON</button>
+<input type="file" id="import-file" style="display:none" onchange="importQuote(event)" />
+<button onclick="document.getElementById('import-file').click()">Import JSON</button>
+<br><br>
 
 <strong>Total: $<span id="total">0.00</span></strong><br><br>
-
 <button onclick="generatePDF()">Download PDF</button>
 
-<!-- =========================
-     PDF OUTPUT
-========================= -->
 <div id="quote-wrapper">
   <div id="quote">
-
     <img id="logo-img">
     <h3>Quote</h3>
-
     <p><strong>From:</strong> <span id="q-from"></span></p>
     <p><strong>To:</strong> <span id="q-to"></span></p>
-
     <table id="pdf-table">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th>Qty</th>
-          <th>Rate</th>
-          <th>Amount</th>
-        </tr>
-      </thead>
+      <thead><tr>
+        <th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th>
+      </tr></thead>
       <tbody id="quote-body"></tbody>
     </table>
-
     <p><strong>Total: $<span id="q-total"></span></strong></p>
-
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
-
 <script>
 
 let logoData = null;
@@ -143,78 +71,137 @@ let logoData = null;
 document.getElementById("logo").addEventListener("change", e => {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
-  reader.onload = ev => logoData = ev.target.result;
+  reader.onload = ev => {
+    logoData = ev.target.result;
+    localStorage.setItem("qq_logo", logoData);
+  };
   reader.readAsDataURL(file);
 });
 
 /* ================= ADD ROW ================= */
-function addRow() {
+function addRow(data = {}) {
   const table = document.getElementById('quote-table');
   const row = table.insertRow(-1);
-
   row.innerHTML = `
-    <td><input type="text" class="desc"></td>
-    <td><input type="number" class="qty" value="1"></td>
-    <td><input type="number" class="rate" value="0"></td>
+    <td><input type="text" class="desc" value="${data.desc || ''}"></td>
+    <td><input type="number" class="qty" value="${data.qty || 1}"></td>
+    <td><input type="number" class="rate" value="${data.rate || 0}"></td>
     <td class="amount">$0.00</td>
   `;
 }
 
-/* ================= FIXED LIVE UPDATE (THIS IS THE ONLY REAL FIX) ================= */
+/* ================= LIVE UPDATE + SAVE ================= */
 document.getElementById('quote-table').addEventListener('input', function () {
   let total = 0;
-
   const rows = document.querySelectorAll('#quote-table tr');
-
+  let savedRows = [];
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-
     const desc = row.querySelector('.desc');
     const qty = row.querySelector('.qty');
     const rate = row.querySelector('.rate');
     const amt = row.querySelector('.amount');
-
     if (!desc || !qty || !rate || !amt) continue;
-
     const q = Number(qty.value) || 0;
     const r = Number(rate.value) || 0;
-
     const a = q * r;
-
     amt.innerText = '$' + a.toFixed(2);
     total += a;
+    savedRows.push({ desc: desc.value, qty: q, rate: r });
+  }
+  document.getElementById('total').innerText = total.toFixed(2);
+  localStorage.setItem("qq_rows", JSON.stringify(savedRows));
+  localStorage.setItem("qq_from", document.getElementById('from').value);
+  localStorage.setItem("qq_to", document.getElementById('to').value);
+});
+
+/* ================= EXPORT JSON ================= */
+function exportQuote() {
+  const data = {
+    from: localStorage.getItem("qq_from"),
+    to: localStorage.getItem("qq_to"),
+    logo: localStorage.getItem("qq_logo"),
+    rows: JSON.parse(localStorage.getItem("qq_rows") || "[]")
+  };
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'quote.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ================= IMPORT JSON ================= */
+function importQuote(event) {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = JSON.parse(e.target.result);
+    if (data.from) localStorage.setItem("qq_from", data.from);
+    if (data.to) localStorage.setItem("qq_to", data.to);
+    if (data.logo) localStorage.setItem("qq_logo", data.logo);
+    if (data.rows) localStorage.setItem("qq_rows", JSON.stringify(data.rows));
+    location.reload();
+  };
+  reader.readAsText(file);
+}
+
+/* ================= LOAD FROM STORAGE ================= */
+window.onload = function () {
+  const savedRows = JSON.parse(localStorage.getItem("qq_rows") || "[]");
+  const from = localStorage.getItem("qq_from") || "";
+  const to = localStorage.getItem("qq_to") || "";
+  const logo = localStorage.getItem("qq_logo");
+
+  document.getElementById('from').value = from;
+  document.getElementById('to').value = to;
+  if (logo) logoData = logo;
+
+  if (savedRows.length > 0) {
+    document.querySelectorAll('#quote-table tr:not(:first-child)').forEach(r => r.remove());
+    savedRows.forEach(r => addRow(r));
   }
 
-  document.getElementById('total').innerText = total.toFixed(2);
-});
+  document.getElementById('quote-table').dispatchEvent(new Event('input'));
+};
+
+/* ================= RESET ================= */
+function newQuote() {
+  if (!confirm("Start a new quote?")) return;
+  localStorage.clear();
+  document.getElementById('from').value = '';
+  document.getElementById('to').value = '';
+  const table = document.getElementById('quote-table');
+  table.innerHTML = `
+    <tr>
+      <th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th>
+    </tr>
+  `;
+  addRow();
+  document.getElementById('total').innerText = "0.00";
+}
 
 /* ================= PDF ================= */
 function generatePDF() {
-
   const rows = document.querySelectorAll('#quote-table tr');
   const body = document.getElementById('quote-body');
   body.innerHTML = '';
-
   let hasData = false;
-
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-
     const desc = row.querySelector('.desc');
     const qty = row.querySelector('.qty');
     const rate = row.querySelector('.rate');
-
     if (!desc || !qty || !rate) continue;
     if (!desc.value.trim()) continue;
-
     hasData = true;
-
     const q = Number(qty.value) || 0;
     const r = Number(rate.value) || 0;
     const a = q * r;
-
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${desc.value}</td>
@@ -222,29 +209,22 @@ function generatePDF() {
       <td>$${r.toFixed(2)}</td>
       <td>$${a.toFixed(2)}</td>
     `;
-
     body.appendChild(tr);
   }
-
   if (!hasData) {
     alert("Please add at least one line item.");
     return;
   }
-
   document.getElementById('q-from').innerText = document.getElementById('from').value;
   document.getElementById('q-to').innerText = document.getElementById('to').value;
   document.getElementById('q-total').innerText = document.getElementById('total').innerText;
-
   const wrapper = document.getElementById('quote-wrapper');
   const quote = document.getElementById('quote');
   const logo = document.getElementById('logo-img');
-
   wrapper.style.display = 'flex';
-
   function render() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-
         html2pdf()
           .set({
             margin: 10,
@@ -261,7 +241,6 @@ function generatePDF() {
       });
     });
   }
-
   if (logoData) {
     logo.src = logoData;
     if (logo.complete) render();
@@ -272,6 +251,5 @@ function generatePDF() {
 }
 
 </script>
-
 </body>
 </html>
